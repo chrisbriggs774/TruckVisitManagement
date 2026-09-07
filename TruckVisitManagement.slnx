@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/ADRs/">
+    <File Path="ADR-001 - Adopt CQRS with DynamoDb and OpenSearch.md" />
+    <File Path="ADR-002 - Host API on Kubernetes.md" />
+    <File Path="ADR-003 - Event-Driven Projection Strategy.md" />
+    <File Path="ADR-004 - Immutable Audit History.md" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="bounded-context-definition.md" />
+    <File Path="domain-vision.md" />
+    <File Path="TruckVisit_Runtime_Architecture.drawio" />
+    <File Path="ubiquitous-language.md" />
+  </Folder>
+</Solution>
