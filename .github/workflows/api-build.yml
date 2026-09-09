@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - 'TruckVisitManagement.Api/**'
+      - 'TruckVisitManagement.Api.Tests/**'
       - 'TruckVisitManagement.Application.Commands/**'
       - 'TruckVisitManagement.Application.Queries/**'
       - 'TruckVisitManagement.Domain/**'
@@ -31,3 +32,18 @@ jobs:
 
       - name: Build API project
         run: dotnet build TruckVisitManagement.Api/TruckVisitManagement.Api.csproj --configuration Release --no-restore
+
+      - name: Restore API business tests
+        run: dotnet restore TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj
+
+      - name: Build API business tests
+        run: dotnet build TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj --configuration Release --no-restore
+
+      - name: Run API business tests
+        id: run_business_tests
+        continue-on-error: true
+        run: dotnet test TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj --configuration Release --no-build
+
+      - name: Warn on failing business tests
+        if: steps.run_business_tests.outcome == 'failure'
+        run: echo "::warning::API business tests failed. Workflow is configured to continue for now."
