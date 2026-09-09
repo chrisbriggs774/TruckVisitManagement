@@ -1,16 +1,20 @@
 <Solution>
-  <Folder Name="/ADRs/">
-    <File Path="ADR-001 - Adopt CQRS with DynamoDb and OpenSearch.md" />
-    <File Path="ADR-002 - Host API on Kubernetes.md" />
-    <File Path="ADR-003 - Event-Driven Projection Strategy.md" />
-    <File Path="ADR-004 - Immutable Audit History.md" />
+  <Folder Name="/Documentation/" />
+  <Folder Name="/Documentation/ADRs/">
+    <File Path="Documentation/ADRs/ADR-001 - Adopt CQRS with DynamoDb and OpenSearch.md" />
+    <File Path="Documentation/ADRs/ADR-002 - Host API on Kubernetes.md" />
+    <File Path="Documentation/ADRs/ADR-003 - Event-Driven Projection Strategy.md" />
+    <File Path="Documentation/ADRs/ADR-004 - Immutable Audit History.md" />
   </Folder>
-  <Folder Name="/Solution Items/">
-    <File Path="bounded-context-definition.md" />
-    <File Path="domain-vision.md" />
+  <Folder Name="/Documentation/Architecture/">
+    <File Path="Documentation/Architecture/TruckVisit_Runtime_Architecture.drawio" />
+  </Folder>
+  <Folder Name="/Documentation/ProjectDocumentation/">
+    <File Path="Documentation/ProjectDocumentation/bounded-context-definition.md" />
+    <File Path="Documentation/ProjectDocumentation/domain-vision.md" />
+    <File Path="Documentation/ProjectDocumentation/TruckVisitManagement.png" />
+    <File Path="Documentation/ProjectDocumentation/ubiquitous-language.md" />
     <File Path="README.md" />
-    <File Path="TruckVisit_Runtime_Architecture.drawio" />
-    <File Path="ubiquitous-language.md" />
   </Folder>
   <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />
 </Solution>
