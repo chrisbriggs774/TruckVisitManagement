@@ -1,636 +1,388 @@
-ADR-003: Event-Driven Projection Strategy 
+# ADR-003: Event-Driven Projection Strategy
 
-Status 
+| | |
+|---|---|
+| **Status** | Accepted |
 
-Accepted 
+---
 
- 
+## Table of Contents
 
-Context 
+1. [Context](#context)
+2. [Decision](#decision)
+3. [Rationale](#rationale)
+4. [Projection Architecture](#projection-architecture)
+5. [Consistency Model](#consistency-model)
+6. [Failure Handling](#failure-handling)
+7. [Retention Alignment](#retention-alignment)
+8. [Alternatives Considered](#alternatives-considered)
+9. [Operational Requirements](#operational-requirements)
+10. [Consequences](#consequences)
+11. [Risks](#risks)
+12. [Architecture Principle Established](#architecture-principle-established)
 
-The Truck Visit Management platform has adopted a CQRS architecture (ADR-001). 
+---
 
-Under this architecture: 
+## Context
 
-    DynamoDB is the transactional system of record. 
+The Truck Visit Management platform has adopted a CQRS architecture ([ADR-001](./adr-001-cqrs-dynamodb-opensearch.md)).
 
-    OpenSearch is the query-optimised read model. 
+Under this architecture:
 
-    Writes and reads are independently optimised. 
+- DynamoDB is the transactional system of record.
+- OpenSearch is the query-optimised read model.
+- Writes and reads are independently optimised.
+- Search capabilities are expected to evolve over time.
+- Read traffic is expected to be lower than write traffic.
 
-    Search capabilities are expected to evolve over time. 
+The platform must support:
 
-    Read traffic is expected to be lower than write traffic. 
+- Near real-time operational visibility
+- Flexible search capabilities
+- Future reporting requirements
+- Scalable read and write workloads
+- 99.95% availability
 
-The platform must support: 
+Since read and write models are stored in different persistence technologies, a mechanism is required to keep the OpenSearch read model synchronised with changes made in DynamoDB.
 
-    Near real-time operational visibility 
+---
 
-    Flexible search capabilities 
+## Decision
 
-    Future reporting requirements 
+The solution will use an **event-driven projection architecture** to build and maintain the OpenSearch read model.
 
-    Scalable read and write workloads 
+Changes committed to DynamoDB will be published through DynamoDB Streams and processed asynchronously by a projection service.
 
-    99.95% availability 
+```mermaid
+flowchart TD
+    A[Truck Visit API] --> B[DynamoDB<br/>System of Record]
+    B --> C[DynamoDB Stream]
+    C --> D[Projection Service]
+    D --> E[OpenSearch<br/>Read Model]
+```
 
-Since read and write models are stored in different persistence technologies, a mechanism is required to keep the OpenSearch read model synchronised with changes made in DynamoDB. 
+> OpenSearch will never be updated directly by API requests. All read model updates must originate from events emitted from the transactional datastore.
 
- 
+---
 
-Decision 
+## Rationale
 
-The solution will use an event-driven projection architecture to build and maintain the OpenSearch read model. 
+### Decoupling Reads from Writes
 
-Changes committed to DynamoDB will be published through DynamoDB Streams and processed asynchronously by a projection service. 
+The transactional model and query model serve different purposes.
 
-1                     +----------------+ 
+| DynamoDB is optimised for | OpenSearch is optimised for |
+|---|---|
+| Fast writes | Multi-field filtering |
+| Aggregate persistence | Search |
+| Operational simplicity | Aggregations, analytics, operational dashboards |
 
-2                     | Truck Visit API| 
+Separating these concerns allows each technology to be optimised independently.
 
-3                     +--------+-------+ 
+### Scalability
 
-4                              | 
+As the number of terminals grows, write throughput and search workload are likely to grow at different rates. Event-driven projections allow:
 
-5                              v 
+- Independent scaling of projection processing
+- Independent scaling of search infrastructure
+- Independent tuning of read and write performance
 
-6                     +----------------+ 
+...without introducing coupling between systems.
 
-7                     |   DynamoDB     | 
+### Future Query Flexibility
 
-8                     | System of      | 
+Search requirements frequently evolve, for example:
 
-9                     | Record         | 
+- Additional filter combinations
+- New reporting attributes
+- Operational dashboards
+- Regulatory reporting support
 
-10                     +--------+-------+ 
+By projecting data into OpenSearch, new indexes and document structures can be introduced without impacting the transactional data model.
 
-11                              | 
+### Resilience
 
-12                              v 
+The write path remains available even if OpenSearch is temporarily unavailable. This is important because:
 
-13                     +----------------+ 
+- Creating Visits
+- Updating Statuses
+- Recording Audit Data
 
-14                     | DynamoDB Stream | 
+...are business-critical operations. Search is important but should not prevent business transactions from being recorded.
 
-15                     +--------+-------+ 
+---
 
-16                              | 
+## Projection Architecture
 
-17                              v 
+### Event Source
 
-18                     +----------------+ 
+DynamoDB Streams will act as the source of changes. Events generated include:
 
-19                     | Projection     | 
+- `Visit Created`
+- `Visit Updated`
+- `Visit Status Changed`
+- `Visit Expired`
 
-20                     | Service        | 
+### Projection Service
 
-21                     +--------+-------+ 
+The Projection Service is responsible for:
 
-22                              | 
+- Consuming stream events
+- Transforming domain data
+- Building search documents
+- Updating OpenSearch indexes
+- Managing projection failures
 
-23                              v 
+> The Projection Service contains no business logic. It exists solely to create and maintain read models.
 
-24                     +----------------+ 
+### Search Document Example
 
-25                     | OpenSearch     | 
+A visit projection may contain:
 
-26                     | Read Model     | 
+- `VisitId`
+- `TerminalId`
+- `CurrentStatus`
+- `TruckNumber`
+- `TrailerNumber`
+- `DriverName`
+- `MovementDates`
+- `CreatedBy`
+- `CreatedDate`
+- `LastUpdatedDate`
 
-27                     +----------------+ 
+This structure is optimised for querying rather than transactional consistency.
 
-OpenSearch will never be updated directly by API requests. 
+---
 
-All read model updates must originate from events emitted from the transactional datastore. 
+## Consistency Model
 
- 
+The platform adopts an **Eventual Consistency** model.
 
-Rationale 
+### Business Acceptance
 
-Decoupling Reads from Writes 
+Immediately after a successful write, `Get By Id` must return the latest transactional state.
 
-The transactional model and query model serve different purposes. 
+However, `Search` may take a short period to reflect changes.
 
-DynamoDB is optimised for: 
+### Target Projection SLA
 
-    Fast writes 
+The platform should target:
 
-    Aggregate persistence 
+| Percentile | Target |
+|---|---|
+| 95% of projections | < 2 seconds |
+| 99% of projections | < 5 seconds |
 
-    Operational simplicity 
+...from successful transaction commit to search availability.
 
-OpenSearch is optimised for: 
+### User Experience Implications
 
-    Multi-field filtering 
+Operational users may observe:
 
-    Search 
+1. Visit created
+2. Search immediately performed
+3. Visit not yet visible
 
-    Aggregations 
+This behaviour is expected and should be documented.
 
-    Analytics 
+---
 
-    Operational dashboards 
+## Failure Handling
 
-Separating these concerns allows each technology to be optimised independently. 
+### Scenario
 
- 
+Projection processing fails due to:
 
-Scalability 
+- OpenSearch outage
+- Network interruption
+- Temporary infrastructure failure
 
-As the number of terminals grows, write throughput and search workload are likely to grow at different rates. 
+### Behaviour
 
-Event-driven projections allow: 
+Transactional writes remain successful. The Projection Service retries processing until successful.
 
-    Independent scaling of projection processing 
+```mermaid
+flowchart LR
+    A[Write Success] --> B[Projection Failure]
+    B --> C[Retry Queue]
+    C --> D[Successful Projection]
+```
 
-    Independent scaling of search infrastructure 
+### Dead Letter Queue
 
-    Independent tuning of read and write performance 
+Failed projections exceeding retry limits will be moved to a Dead Letter Queue (DLQ). This allows:
 
-Without introducing coupling between systems. 
+- Operational investigation
+- Replay capability
+- Controlled recovery
 
- 
+### Idempotency
 
-Future Query Flexibility 
+Projection processing must be idempotent. Processing the same event multiple times must produce the same result.
 
-Search requirements frequently evolve. 
+**Example**: A `Visit Status Changed` event processed twice must not create duplicate documents.
 
-Examples include: 
+This protects against:
 
-    Additional filter combinations 
+- Stream retries
+- Consumer restarts
+- Network failures
 
-    New reporting attributes 
+---
 
-    Operational dashboards 
+## Retention Alignment
 
-    Regulatory reporting support 
+[ADR-001](./adr-001-cqrs-dynamodb-opensearch.md) establishes a seven-year retention policy. The projection strategy must honour the same lifecycle.
 
-By projecting data into OpenSearch, new indexes and document structures can be introduced without impacting the transactional data model. 
+### Rule
 
- 
+When records expire from DynamoDB:
 
-Resilience 
+```mermaid
+flowchart LR
+    A[TTL Reached] --> B[Expiration Event]
+    B --> C[Remove Projection]
+    C --> D[OpenSearch Cleanup]
+```
 
-The write path remains available even if OpenSearch is temporarily unavailable. 
+> The search index must not retain records beyond the approved retention period.
 
-This is important because: 
+---
 
-1     Creating Visits 
+## Alternatives Considered
 
-2     Updating Statuses 
+### Dual Writes
 
-3     Recording Audit Data 
+```mermaid
+flowchart LR
+    A[API] --> B[DynamoDB]
+    A --> C[OpenSearch]
+```
 
-are business-critical operations. 
+| Advantages | Disadvantages |
+|---|---|
+| Immediate search consistency | Increased application complexity |
+| | Partial failure scenarios |
+| | Inconsistent data risk |
+| | Tight coupling |
 
-Search is important but should not prevent business transactions from being recorded. 
+**Decision**: Rejected.
 
- 
+### Synchronous Projection
 
-Projection Architecture 
+```mermaid
+flowchart LR
+    A[Write] --> B[Update Search]
+    B --> C[Return Success]
+```
 
-Event Source 
+| Advantages | Disadvantages |
+|---|---|
+| Stronger consistency | Slower write path |
+| | Search dependency on critical transactions |
+| | Reduced resilience |
 
-DynamoDB Streams will act as the source of changes. 
+**Decision**: Rejected.
 
-Events generated include: 
+### Scheduled Batch Synchronisation
 
-1     Visit Created 
+```mermaid
+flowchart LR
+    A[DynamoDB] --> B[Hourly Sync Job]
+    B --> C[OpenSearch]
+```
 
-2     Visit Updated 
+| Advantages | Disadvantages |
+|---|---|
+| Simpler implementation | Poor operational visibility |
+| | Significant data latency |
+| | Fails near real-time requirements |
 
-3     Visit Status Changed 
+**Decision**: Rejected.
 
-4     Visit Expired 
+---
 
- 
+## Operational Requirements
 
-Projection Service 
+### Monitoring
 
-The Projection Service is responsible for: 
+The Projection Service must expose metrics for:
 
-    Consuming stream events 
+- Projection Throughput
+- Projection Latency
+- Projection Failures
+- Retry Count
+- DLQ Count
+- OpenSearch Indexing Latency
 
-    Transforming domain data 
+### Alerting
 
-    Building search documents 
+Operational alerts should be raised when:
 
-    Updating OpenSearch indexes 
+- Projection Backlog Exceeds Threshold
+- DLQ Contains Messages
+- Projection Latency SLA Breached
+- OpenSearch Indexing Fails
 
-    Managing projection failures 
+### Health Checks
 
-The Projection Service contains no business logic. 
+Health endpoints should validate:
 
-It exists solely to create and maintain read models. 
+- DynamoDB Stream Connectivity
+- OpenSearch Connectivity
+- Projection Consumer Status
 
- 
+---
 
-Search Document Example 
+## Consequences
 
-A visit projection may contain: 
+### Positive
+- Highly scalable architecture
+- Decoupled read and write models
+- Resilient transaction processing
+- Flexible search capabilities
+- Independent optimisation of each datastore
+- Supports future reporting requirements
 
-1     VisitId 
+### Negative
+- Eventual consistency
+- Additional infrastructure components
+- Increased operational monitoring requirements
+- Replay and recovery mechanisms required
 
-2     TerminalId 
+---
 
-3     CurrentStatus 
+## Risks
 
-4     TruckNumber 
+### Risk: Projection Backlog Growth
 
-5     TrailerNumber 
+Large event volumes could delay search visibility.
 
-6     DriverName 
+**Mitigation**
+- Horizontal scaling of projection processors
+- Backlog monitoring
+- Alerting on latency thresholds
 
-7     MovementDates 
+### Risk: Search Model Drift
 
-8     CreatedBy 
+Projection failures could cause OpenSearch to diverge from DynamoDB.
 
-9     CreatedDate 
+**Mitigation**
+- Replay capability
+- Periodic reconciliation jobs
+- DLQ monitoring
 
-10     LastUpdatedDate 
+### Risk: Event Schema Evolution
 
-This structure is optimised for querying rather than transactional consistency. 
+Future model changes may break projections.
 
- 
+**Mitigation**
+- Versioned event contracts
+- Backward-compatible schema changes
+- Controlled reindexing processes
 
-Consistency Model 
+---
 
-The platform adopts an Eventual Consistency model. 
+## Architecture Principle Established
 
-Business Acceptance 
-
-Immediately after a successful write: 
-
-1     Get By Id 
-
-must return the latest transactional state. 
-
-However: 
-
-1     Search 
-
-may take a short period to reflect changes. 
-
- 
-
-Target Projection SLA 
-
-The platform should target: 
-
-1     95% of projections < 2 seconds 
-
-2     99% of projections < 5 seconds 
-
-from successful transaction commit to search availability. 
-
- 
-
-User Experience Implications 
-
-Operational users may observe: 
-
-1     Visit created 
-
-2     Search immediately performed 
-
-3     Visit not yet visible 
-
-This behaviour is expected and should be documented. 
-
- 
-
-Failure Handling 
-
-Scenario 
-
-Projection processing fails due to: 
-
-    OpenSearch outage 
-
-    Network interruption 
-
-    Temporary infrastructure failure 
-
- 
-
-Behaviour 
-
-Transactional writes remain successful. 
-
-The Projection Service retries processing until successful. 
-
-1     Write Success 
-
-2           | 
-
-3           v 
-
-4     Projection Failure 
-
-5           | 
-
-6           v 
-
-7     Retry Queue 
-
-8           | 
-
-9           v 
-
-10     Successful Projection 
-
- 
-
-Dead Letter Queue 
-
-Failed projections exceeding retry limits will be moved to a Dead Letter Queue (DLQ). 
-
-This allows: 
-
-    Operational investigation 
-
-    Replay capability 
-
-    Controlled recovery 
-
- 
-
-Idempotency 
-
-Projection processing must be idempotent. 
-
-Processing the same event multiple times must produce the same result. 
-
-Example: 
-
-1     Visit Status Changed 
-
-processed twice must not create duplicate documents. 
-
-This protects against: 
-
-    Stream retries 
-
-    Consumer restarts 
-
-    Network failures 
-
- 
-
-Retention Alignment 
-
-ADR-001 establishes a seven-year retention policy. 
-
-The projection strategy must honour the same lifecycle. 
-
-Rule 
-
-When records expire from DynamoDB: 
-
-1     TTL Reached 
-
-2           | 
-
-3           v 
-
-4     Expiration Event 
-
-5           | 
-
-6           v 
-
-7     Remove Projection 
-
-8           | 
-
-9           v 
-
-10     OpenSearch Cleanup 
-
-The search index must not retain records beyond the approved retention period. 
-
- 
-
-Alternatives Considered 
-
-Dual Writes 
-
-1     API 
-
-2      | 
-
-3      +--> DynamoDB 
-
-4      | 
-
-5      +--> OpenSearch 
-
-Advantages 
-
-    Immediate search consistency 
-
-Disadvantages 
-
-    Increased application complexity 
-
-    Partial failure scenarios 
-
-    Inconsistent data risk 
-
-    Tight coupling 
-
-Decision 
-
-Rejected. 
-
- 
-
-Synchronous Projection 
-
-1     Write 
-
-2       | 
-
-3       v 
-
-4     Update Search 
-
-5       | 
-
-6       v 
-
-7     Return Success 
-
-Advantages 
-
-    Stronger consistency 
-
-Disadvantages 
-
-    Slower write path 
-
-    Search dependency on critical transactions 
-
-    Reduced resilience 
-
-Decision 
-
-Rejected. 
-
- 
-
-Scheduled Batch Synchronisation 
-
-1     DynamoDB 
-
-2        | 
-
-3        v 
-
-4     Hourly Sync Job 
-
-5        | 
-
-6        v 
-
-7     OpenSearch 
-
-Advantages 
-
-    Simpler implementation 
-
-Disadvantages 
-
-    Poor operational visibility 
-
-    Significant data latency 
-
-    Fails near real-time requirements 
-
-Decision 
-
-Rejected. 
-
- 
-
-Operational Requirements 
-
-Monitoring 
-
-The Projection Service must expose metrics for: 
-
-1     Projection Throughput 
-
-2     Projection Latency 
-
-3     Projection Failures 
-
-4     Retry Count 
-
-5     DLQ Count 
-
-6     OpenSearch Indexing Latency 
-
- 
-
-Alerting 
-
-Operational alerts should be raised when: 
-
-1     Projection Backlog Exceeds Threshold 
-
-2     DLQ Contains Messages 
-
-3     Projection Latency SLA Breached 
-
-4     OpenSearch Indexing Fails 
-
- 
-
-Health Checks 
-
-Health endpoints should validate: 
-
-1     DynamoDB Stream Connectivity 
-
-2     OpenSearch Connectivity 
-
-3     Projection Consumer Status 
-
- 
-
-Consequences 
-
-Positive 
-
-    Highly scalable architecture 
-
-    Decoupled read and write models 
-
-    Resilient transaction processing 
-
-    Flexible search capabilities 
-
-    Independent optimisation of each datastore 
-
-    Supports future reporting requirements 
-
- 
-
-Negative 
-
-    Eventual consistency 
-
-    Additional infrastructure components 
-
-    Increased operational monitoring requirements 
-
-    Replay and recovery mechanisms required 
-
- 
-
-Risks 
-
-Risk: Projection Backlog Growth 
-
-Large event volumes could delay search visibility. 
-
-Mitigation 
-
-    Horizontal scaling of projection processors 
-
-    Backlog monitoring 
-
-    Alerting on latency thresholds 
-
- 
-
-Risk: Search Model Drift 
-
-Projection failures could cause OpenSearch to diverge from DynamoDB. 
-
-Mitigation 
-
-    Replay capability 
-
-    Periodic reconciliation jobs 
-
-    DLQ monitoring 
-
- 
-
-Risk: Event Schema Evolution 
-
-Future model changes may break projections. 
-
-Mitigation 
-
-    Versioned event contracts 
-
-    Backward-compatible schema changes 
-
-    Controlled reindexing processes 
-
-
-Architecture Principle Established 
-
-All OpenSearch read models will be maintained asynchronously through an event-driven projection process sourced from DynamoDB Streams. DynamoDB remains the authoritative source of truth, while OpenSearch acts as a near real-time searchable projection optimised for operational queries. 
+> All OpenSearch read models will be maintained asynchronously through an event-driven projection process sourced from DynamoDB Streams. DynamoDB remains the authoritative source of truth, while OpenSearch acts as a near real-time searchable projection optimised for operational queries.

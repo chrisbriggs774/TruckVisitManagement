@@ -1,363 +1,248 @@
-ADR-002: Host APIs on Kubernetes 
+# ADR-002: Host APIs on Kubernetes
 
-Status 
+| | |
+|---|---|
+| **Status** | Accepted |
 
-Accepted 
+---
 
- 
+## Table of Contents
 
-Context 
+1. [Context](#context)
+2. [Decision](#decision)
+3. [Rationale](#rationale)
+4. [Alternatives Considered](#alternatives-considered)
+5. [Consequences](#consequences)
+6. [Operational Considerations](#operational-considerations)
+7. [Risks](#risks)
+8. [Architecture Principle Established](#architecture-principle-established)
 
-The Truck Visit Management platform must support: 
+---
 
-    99.95% availability 
+## Context
 
-    Peak throughput of up to 300 requests per second 
+The Truck Visit Management platform must support:
 
-    Horizontal scalability 
+- 99.95% availability
+- Peak throughput of up to 300 requests per second
+- Horizontal scalability
+- Secure and repeatable deployment processes
+- Enterprise observability standards
+- Future growth across multiple terminals
 
-    Secure and repeatable deployment processes 
+DFDS has an established strategic platform for hosting APIs and backend services using Kubernetes.
 
-    Enterprise observability standards 
+Alternative hosting models considered include:
 
-    Future growth across multiple terminals 
+- AWS Lambda with API Gateway
+- Amazon ECS/Fargate
+- Virtual Machines (EC2)
+- Traditional PaaS offerings
 
-DFDS has an established strategic platform for hosting APIs and backend services using Kubernetes. 
+The Truck Visit Management service is expected to operate as a long-lived API workload that receives a consistent volume of traffic throughout the day, rather than an infrequently invoked event-driven workload.
 
-Alternative hosting models considered include: 
+---
 
-    AWS Lambda with API Gateway 
+## Decision
 
-    Amazon ECS/Fargate 
+Deploy the Truck Visit Management API to the existing **DFDS Kubernetes platform**.
 
-    Virtual Machines (EC2) 
+The service will be deployed as a containerized application running within Kubernetes and exposed through the organization's standard ingress and networking architecture.
 
-    Traditional PaaS offerings 
+```mermaid
+flowchart TD
+    A[Clients] --> B[Ingress Controller]
+    B --> C[Truck Visit API]
+    C --> D[DynamoDB]
+    C --> E[OpenSearch]
+```
 
-The Truck Visit Management service is expected to operate as a long-lived API workload that receives a consistent volume of traffic throughout the day, rather than an infrequently invoked event-driven workload. 
+Kubernetes will be the standard runtime environment for:
 
- 
+- API Hosting
+- Service Scaling
+- Deployment Management
+- Health Monitoring
+- Observability Integration
 
-Decision 
+---
 
-Deploy the Truck Visit Management API to the existing DFDS Kubernetes platform. 
+## Rationale
 
-The service will be deployed as a containerized application running within Kubernetes and exposed through the organization's standard ingress and networking architecture. 
+### Alignment with DFDS Standards
 
-1     Clients 
+DFDS already operates Kubernetes as the standard platform for hosting APIs. Adopting the organisational standard provides:
 
-2        | 
+- Existing operational knowledge
+- Established support processes
+- Existing monitoring capabilities
+- Reusable deployment pipelines
+- Reduced operational risk
 
-3        v 
+> Architecture should favour platform consistency unless a compelling business reason exists to diverge.
 
-4     Ingress Controller 
+### Operational Maturity
 
-5        | 
+The Kubernetes platform already provides:
 
-6        v 
+- Container orchestration
+- Automated deployment pipelines
+- Rolling updates
+- Health checks
+- Autoscaling
+- Centralised logging
+- Metrics collection
+- Secrets management
 
-7     Truck Visit API 
+The Truck Visit Management API can consume these capabilities without additional engineering effort.
 
-8        | 
+### Predictable Workload Characteristics
 
-9        +--> DynamoDB 
+Truck Visit Management exhibits relatively predictable traffic patterns, including:
 
-10        | 
+- Continuous daily operation
+- Predictable business-hour peaks
+- Long-running API processes
+- Stable compute requirements
 
-11        +--> OpenSearch 
+These characteristics align well with container-based hosting.
 
-Kubernetes will be the standard runtime environment for: 
+### Future Growth
 
-    API Hosting 
+The platform must support future expansion to:
 
-    Service Scaling 
+- Additional terminals
+- Additional Smart Gate integrations
+- Increased operational reporting
+- New API consumers
 
-    Deployment Management 
+Kubernetes provides a straightforward scaling model without requiring architectural redesign.
 
-    Health Monitoring 
+---
 
-    Observability Integration 
+## Alternatives Considered
 
- 
+### Option 1: AWS Lambda and API Gateway
 
-Rationale 
+**Description**
+Deploy the API as serverless functions using AWS Lambda fronted by API Gateway.
 
-Alignment with DFDS Standards 
+| Advantages | Disadvantages |
+|---|---|
+| No infrastructure management | Diverges from DFDS hosting standards |
+| Automatic scaling | Introduces a second hosting model to support |
+| Consumption-based pricing | Requires different operational tooling |
+| Fast initial deployment | Increased architectural inconsistency across platforms |
+| | Reduced reuse of existing Kubernetes expertise |
 
-DFDS already operates Kubernetes as the standard platform for hosting APIs. 
+**Decision**: Rejected. The organisational cost of introducing an alternative hosting model outweighs the benefits.
 
-Adopting the organisational standard provides: 
+### Option 2: Amazon ECS/Fargate
 
-    Existing operational knowledge 
+**Description**
+Deploy containers using AWS-managed container services.
 
-    Established support processes 
+| Advantages | Disadvantages |
+|---|---|
+| Simplified container operations | Not aligned with DFDS standards |
+| Reduced infrastructure management | Requires separate deployment patterns |
+| AWS-native service integrations | Creates additional operational knowledge requirements |
 
-    Existing monitoring capabilities 
+**Decision**: Rejected. Provides limited business value over the existing Kubernetes platform.
 
-    Reusable deployment pipelines 
+---
 
-    Reduced operational risk 
+## Consequences
 
-Architecture should favour platform consistency unless a compelling business reason exists to diverge. 
+### Positive
+- Aligns with DFDS engineering standards
+- Consistent deployment approach across teams
+- Reuse of existing CI/CD pipelines
+- Reuse of existing observability tooling
+- Supports horizontal scaling
+- Supports rolling deployments
+- Supports high availability requirements
+- Reduces onboarding complexity for future teams
 
- 
+### Negative
+- Requires Kubernetes operational knowledge
+- Slightly higher infrastructure footprint compared with serverless workloads
+- Cluster management remains an organisational responsibility
 
-Operational Maturity 
+---
 
-The Kubernetes platform already provides: 
+## Operational Considerations
 
-    Container orchestration 
+### Availability
 
-    Automated deployment pipelines 
+Deploy multiple replicas across availability zones.
 
-    Rolling updates 
+| Setting | Value |
+|---|---|
+| Minimum Replicas | 2 |
+| Preferred Replicas | 3+ |
 
-    Health checks 
+This ensures the service can satisfy the required **99.95% availability**.
 
-    Autoscaling 
+### Scalability
 
-    Centralised logging 
+Horizontal Pod Autoscaling (HPA) should be enabled.
 
-    Metrics collection 
+Scaling signals may include:
+- CPU utilisation
+- Memory utilisation
+- Request throughput
+- Custom application metrics
 
-    Secrets management 
+### Health Monitoring
 
-The Truck Visit Management API can consume these capabilities without additional engineering effort. 
+The service must expose:
 
- 
+- `/health/live`
+- `/health/ready`
 
-Predictable Workload Characteristics 
+...for Kubernetes liveness and readiness probes.
 
-Truck Visit Management exhibits relatively predictable traffic patterns. 
+### Security
 
-Characteristics include: 
+Secrets must not be stored within source control.
 
-    Continuous daily operation 
+Recommended approaches:
+- AWS Secrets Manager
+- External Secrets Operator
+- Kubernetes Secrets
 
-    Predictable business-hour peaks 
+...according to DFDS platform standards.
 
-    Long-running API processes 
+### Observability
 
-    Stable compute requirements 
+All deployments must support:
 
-These characteristics align well with container-based hosting. 
+- Structured logging
+- Correlation IDs
+- OpenTelemetry tracing
+- Metrics collection
+- Distributed tracing
+- Centralised dashboards
 
- 
+---
 
-Future Growth 
+## Risks
 
-The platform must support future expansion to: 
+### Risk: Platform Dependency
 
-    Additional terminals 
+The solution becomes dependent on the DFDS Kubernetes platform.
 
-    Additional Smart Gate integrations 
+**Mitigation**: Adhere to standard Kubernetes capabilities and avoid platform-specific customisations wherever possible.
 
-    Increased operational reporting 
+### Risk: Resource Misconfiguration
 
-    New API consumers 
+Improper pod sizing may impact throughput or operational costs.
 
-Kubernetes provides a straightforward scaling model without requiring architectural redesign. 
+**Mitigation**: Conduct performance testing and establish resource baselines before production launch.
 
- 
+---
 
-Alternatives Considered 
+## Architecture Principle Established
 
-Option 1: AWS Lambda and API Gateway 
-
-Description 
-
-Deploy the API as serverless functions using AWS Lambda fronted by API Gateway. 
-
-Advantages 
-
-    No infrastructure management 
-
-    Automatic scaling 
-
-    Consumption-based pricing 
-
-    Fast initial deployment 
-
-Disadvantages 
-
-    Diverges from DFDS hosting standards 
-
-    Introduces a second hosting model to support 
-
-    Requires different operational tooling 
-
-    Increased architectural inconsistency across platforms 
-
-    Reduced reuse of existing Kubernetes expertise 
-
-Decision 
-
-Rejected. 
-
-The organisational cost of introducing an alternative hosting model outweighs the benefits. 
-
- 
-
-Option 2: Amazon ECS/Fargate 
-
-Description 
-
-Deploy containers using AWS-managed container services. 
-
-Advantages 
-
-    Simplified container operations 
-
-    Reduced infrastructure management 
-
-    AWS-native service integrations 
-
-Disadvantages 
-
-    Not aligned with DFDS standards 
-
-    Requires separate deployment patterns 
-
-    Creates additional operational knowledge requirements 
-
-Decision 
-
-Rejected. 
-
-Provides limited business value over the existing Kubernetes platform. 
-
-
-Consequences 
-
-Positive 
-
-    Aligns with DFDS engineering standards 
-
-    Consistent deployment approach across teams 
-
-    Reuse of existing CI/CD pipelines 
-
-    Reuse of existing observability tooling 
-
-    Supports horizontal scaling 
-
-    Supports rolling deployments 
-
-    Supports high availability requirements 
-
-    Reduces onboarding complexity for future teams 
-
- 
-
-Negative 
-
-    Requires Kubernetes operational knowledge 
-
-    Slightly higher infrastructure footprint compared with serverless workloads 
-
-    Cluster management remains an organisational responsibility 
-
- 
-
-Operational Considerations 
-
-Availability 
-
-Deploy multiple replicas across availability zones. 
-
-1     Minimum Replicas: 2 
-
-2     Preferred Replicas: 3+ 
-
-This ensures the service can satisfy the required: 
-
-1     99.95% Availability 
-
- 
-
-Scalability 
-
-Horizontal Pod Autoscaling (HPA) should be enabled. 
-
-Scaling signals may include: 
-
-    CPU utilisation 
-
-    Memory utilisation 
-
-    Request throughput 
-
-    Custom application metrics 
-
- 
-
-Health Monitoring 
-
-The service must expose: 
-
-1     /health/live 
-
-2     /health/ready 
-
-for Kubernetes liveness and readiness probes. 
-
- 
-
-Security 
-
-Secrets must not be stored within source control. 
-
-Recommended approaches: 
-
-1     AWS Secrets Manager 
-
-2     External Secrets Operator 
-
-3     Kubernetes Secrets 
-
-according to DFDS platform standards. 
-
- 
-
-Observability 
-
-All deployments must support: 
-
-    Structured logging 
-
-    Correlation IDs 
-
-    OpenTelemetry tracing 
-
-    Metrics collection 
-
-    Distributed tracing 
-
-    Centralised dashboards 
-
- 
-
-Risks 
-
-Risk: Platform Dependency 
-
-The solution becomes dependent on the DFDS Kubernetes platform. 
-
-Mitigation 
-
-Adhere to standard Kubernetes capabilities and avoid platform-specific customisations wherever possible. 
-
- 
-
-Risk: Resource Misconfiguration 
-
-Improper pod sizing may impact throughput or operational costs. 
-
-Mitigation 
-
-Conduct performance testing and establish resource baselines before production launch. 
- 
-
-Architecture Principle Established 
-
-All Truck Visit Management APIs will be deployed as containerized workloads on the DFDS Kubernetes platform. Alternative hosting technologies may be reconsidered in the future only where a clear business, operational, or financial benefit can be demonstrated. 
+> All Truck Visit Management APIs will be deployed as containerized workloads on the DFDS Kubernetes platform. Alternative hosting technologies may be reconsidered in the future only where a clear business, operational, or financial benefit can be demonstrated.

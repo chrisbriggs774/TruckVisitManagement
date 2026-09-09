@@ -1,651 +1,371 @@
-ADR-004: Immutable Audit History 
+# ADR-004: Immutable Audit History
 
-Status 
+| | |
+|---|---|
+| **Status** | Accepted |
 
-Accepted 
+---
 
- 
+## Table of Contents
 
-Context 
+1. [Context](#context)
+2. [Decision](#decision)
+3. [Audit Model](#audit-model)
+4. [Audit Record Structure](#audit-record-structure)
+5. [Example Audit Trail](#example-audit-trail)
+6. [Append-Only Principle](#append-only-principle)
+7. [Rationale](#rationale)
+8. [DynamoDB Storage Strategy](#dynamodb-storage-strategy)
+9. [Retention Strategy](#retention-strategy)
+10. [Audit Events](#audit-events)
+11. [Correlation Requirements](#correlation-requirements)
+12. [Search Considerations](#search-considerations)
+13. [Alternatives Considered](#alternatives-considered)
+14. [Risks](#risks)
+15. [Consequences](#consequences)
+16. [Architecture Principle Established](#architecture-principle-established)
 
-The Truck Visit Management platform must satisfy the following business and operational requirements: 
+---
 
-    Regulatory audits occur regularly 
+## Context
 
-    Full audit history of status changes is required 
+The Truck Visit Management platform must satisfy the following business and operational requirements:
 
-    Audit records must be retained for 7 years 
+- Regulatory audits occur regularly
+- Full audit history of status changes is required
+- Audit records must be retained for 7 years
+- Visit status can be updated throughout its lifecycle
+- The platform must provide traceability of operational activity
+- Multiple actors may interact with a Visit over time
 
-    Visit status can be updated throughout its lifecycle 
+A Visit progresses through a defined lifecycle:
 
-    The platform must provide traceability of operational activity 
+```mermaid
+flowchart TD
+    A[Pre-Registered] --> B[At Gate]
+    B --> C[On Site]
+    C --> D[Completed]
+```
 
-    Multiple actors may interact with a Visit over time 
+Whilst the current state of a Visit may change, the business requires a permanent record of how that state was reached.
 
-A Visit progresses through a defined lifecycle: 
+Without an immutable audit capability, the platform would be unable to reliably answer questions such as:
 
-1     Pre-Registered 
+- When did the truck arrive?
+- Who changed the status?
+- What was the previous status?
+- Has data been altered after the fact?
+- Can the history be trusted during an audit?
 
-2         ↓ 
+A dedicated audit strategy is therefore required.
 
-3     At Gate 
+---
 
-4         ↓ 
+## Decision
 
-5     On Site 
+All Visit status transitions shall be recorded as **immutable audit records**.
 
-6         ↓ 
+Audit records:
 
-7     Completed 
+- Are append-only
+- Cannot be modified
+- Cannot be deleted before retention expiry
+- Must be retained for seven years
+- Must be independently queryable
+- Must provide a complete lifecycle history for a Visit
 
-Whilst the current state of a Visit may change, the business requires a permanent record of how that state was reached. 
+Every successful status transition will generate a new audit record. Existing audit records are never updated.
 
-Without an immutable audit capability, the platform would be unable to reliably answer questions such as: 
+---
 
-    When did the truck arrive? 
+## Audit Model
 
-    Who changed the status? 
+### Current State
 
-    What was the previous status? 
+The Visit Aggregate stores the current state of the Visit.
 
-    Has data been altered after the fact? 
+**Example**
+```
+Visit ABC123
+Current Status = On Site
+```
 
-    Can the history be trusted during an audit? 
+### Historical State
 
-A dedicated audit strategy is therefore required. 
+Historical transitions are stored as immutable audit records.
 
- 
+**Example**
+```
+1. Pre-Registered
+2. At Gate
+3. On Site
+```
 
-Decision 
+> The current status can always be derived from the last successful transition, but operational APIs are optimised by storing the current status separately.
 
-All Visit status transitions shall be recorded as immutable audit records. 
+---
 
-Audit records: 
+## Audit Record Structure
 
-    Are append-only 
+Each audit record should contain:
 
-    Cannot be modified 
+- `AuditId`
+- `VisitId`
+- `TerminalId`
+- `EventType`
+- `PreviousStatus`
+- `NewStatus`
+- `Timestamp`
+- `ActorId`
+- `ActorType`
+- `CorrelationId`
 
-    Cannot be deleted before retention expiry 
+### Actor Types
 
-    Must be retained for seven years 
+Possible actor types include:
 
-    Must be independently queryable 
+- Driver
+- Gate Operator
+- System
+- Administrator
+- Integration
 
-    Must provide a complete lifecycle history for a Visit 
+This provides traceability regardless of who initiated the action.
 
-Every successful status transition will generate a new audit record. 
+---
 
-Existing audit records are never updated. 
+## Example Audit Trail
 
- 
+| Event | Timestamp | Previous Status | New Status |
+|---|---|---|---|
+| `VisitCreated` | 2026-01-01T09:00:00Z | — | Pre-Registered |
+| `VisitStatusChanged` | 2026-01-01T09:15:00Z | Pre-Registered | At Gate |
+| `VisitStatusChanged` | 2026-01-01T09:20:00Z | At Gate | On Site |
+| `VisitStatusChanged` | 2026-01-01T11:30:00Z | On Site | Completed |
 
-Audit Model 
+---
 
-Current State 
+## Append-Only Principle
 
-The Visit Aggregate stores the current state of the Visit. 
+Audit records are append-only.
 
-Example: 
+| Permitted | Not Permitted (before retention expiry) |
+|---|---|
+| `INSERT` | `UPDATE` |
+| | `DELETE` |
 
-1     Visit ABC123 
+**Example**
 
-2      
+| Allowed | Not Allowed |
+|---|---|
+| Record 1, Record 2, Record 3, Record 4 | Modify Record 2 |
+| | Delete Record 3 |
+| | Overwrite Record 1 |
 
-3     Current Status = On Site 
+> If an error occurs, a new audit record must be added to represent the correction. Historical facts must never be rewritten.
 
- 
+---
 
-Historical State 
+## Rationale
 
-Historical transitions are stored as immutable audit records. 
+### Regulatory Compliance
 
-Example: 
+The business requirement explicitly states: *"Full audit history of status changes."* Immutable records provide a verifiable audit trail.
 
-1     1. Pre-Registered 
+### Trustworthiness
 
-2     2. At Gate 
+An audit trail can only be trusted if historical records cannot be altered. Immutability ensures:
 
-3     3. On Site 
+- Accountability
+- Non-repudiation
+- Traceability
 
-The current status can always be derived from the last successful transition, but operational APIs are optimised by storing the current status separately. 
+### Operational Investigations
 
- 
+Audit records support investigation of:
 
-Audit Record Structure 
+- Driver complaints
+- Gate incidents
+- Operational delays
+- Status discrepancies
+- Security reviews
 
-Each audit record should contain: 
+### Architectural Simplicity
 
-1     AuditId 
+Append-only audit models are simpler to reason about than mutable audit records. Every event becomes a historical fact.
 
-2     VisitId 
+---
 
-3     TerminalId 
+## DynamoDB Storage Strategy
 
-4     EventType 
+Audit records will be stored separately from the mutable Visit Aggregate.
 
-5     PreviousStatus 
+**Recommended structure**
 
-6     NewStatus 
+```
+Visits Table
+PK = VisitId
 
-7     Timestamp 
+CurrentStatus
+Truck
+Trailer
+Driver
+...
+```
 
-8     ActorId 
+```
+VisitAudit Table
+PK = VisitId
+SK = Timestamp
+```
 
-9     ActorType 
+This enables efficient retrieval of a Visit's audit history whilst maintaining clear separation between **Current State** and **Historical Facts**.
 
-10     CorrelationId 
+---
 
- 
+## Retention Strategy
 
-Actor Types 
+Audit data must be retained for **7 years** in accordance with operational requirements.
 
-Possible actor types include: 
+### TTL Policy
 
-1     Driver 
+Each audit record will contain an `ExpiresAt` attribute, computed as:
 
-2     Gate Operator 
+```
+ExpiresAt = CreatedAt + 7 Years
+```
 
-3     System 
+DynamoDB TTL will be used to automatically expire records once retention obligations have been satisfied.
 
-4     Administrator 
+> **Important**: No audit record may be removed before the retention period is complete, unless a legal or regulatory process explicitly requires otherwise.
 
-5     Integration 
+---
 
-This provides traceability regardless of who initiated the action. 
+## Audit Events
 
- 
+The following events must create audit entries.
 
-Example Audit Trail 
+| Category | Event |
+|---|---|
+| Visit Created | `VisitCreated` |
+| Visit Status Changed | `VisitStatusChanged` |
+| Manual Intervention | `ManualReviewPerformed` |
+| Data Correction | `VisitCorrected` |
+| Security-Relevant Actions | `UnauthorizedAccessAttempt`, `AccessGranted`, `AccessRevoked` (where applicable) |
 
-Visit Creation 
+---
 
-1     Timestamp: 
+## Correlation Requirements
 
-2     2026-01-01T09:00:00Z 
+Every audit event must include a correlation identifier.
 
-3      
+**Purpose**
+- Cross-service tracing
+- Operational debugging
+- Distributed request analysis
 
-4     Event: 
+**Example**
+```
+CorrelationId: 8ee3d95b-faa2-4708-8a87-babb80136ef3
+```
 
-5     VisitCreated 
+All audit events generated during a single workflow should share the same correlation identifier.
 
-6      
+---
 
-7     Status: 
+## Search Considerations
 
-8     Pre-Registered 
+Audit records are not intended to support operational search workloads. Operational visit searches should continue to be served from **OpenSearch**.
 
- 
+Audit records are optimised for:
 
-Arrival At Gate 
+- Traceability
+- Compliance
+- Investigation
+- Historical Review
 
-1     Timestamp: 
+---
 
-2     2026-01-01T09:15:00Z 
+## Alternatives Considered
 
-3      
+### Option 1: Status History Embedded Within Visit Only
 
-4     Event: 
+| Advantages | Disadvantages |
+|---|---|
+| Simpler data model | Difficult retention management |
+| | Harder compliance reporting |
+| | Limits future audit capabilities |
 
-5     VisitStatusChanged 
+**Decision**: Rejected.
 
-6      
+### Option 2: Mutable Audit Records
 
-7     Previous: 
+| Advantages | Disadvantages |
+|---|---|
+| None | Breaks auditability |
+| | Allows historical manipulation |
+| | Fails compliance objectives |
 
-8     Pre-Registered 
+**Decision**: Rejected.
 
-9      
+### Option 3: Database Change Logs Only
 
-10     New: 
+| Advantages | Disadvantages |
+|---|---|
+| Minimal application logic | Database-specific |
+| | Difficult to query |
+| | Difficult to understand from a business perspective |
+| | Poor portability |
 
-11     At Gate 
+**Decision**: Rejected.
 
- 
+---
 
-Enter Site 
+## Risks
 
-1     Timestamp: 
+### Risk: Audit Growth
 
-2     2026-01-01T09:20:00Z 
+Seven years of data may create large audit datasets.
 
-3      
+**Mitigation**
+- DynamoDB TTL
+- Efficient partitioning strategy
+- Archival review if requirements change
 
-4     Event: 
+### Risk: Missing Audit Events
 
-5     VisitStatusChanged 
+Development changes could accidentally bypass audit creation.
 
-6      
+**Mitigation**
+- Audit generation embedded within domain workflows
+- Automated tests verifying audit creation
+- Monitoring of audit event volumes
 
-7     Previous: 
+### Risk: Audit and Business State Divergence
 
-8     At Gate 
+Business updates succeed but audit creation fails.
 
-9      
+**Mitigation**: Audit record creation must be treated as part of the successful transaction workflow. A state change is not complete until the corresponding audit record has been created.
 
-10     New: 
+---
 
-11     On Site 
+## Consequences
 
- 
+### Positive
+- Meets regulatory requirements
+- Complete lifecycle traceability
+- Supports investigations
+- Provides trusted historical records
+- Supports future reporting and analytics
+- Clear separation between current state and audit history
 
-Visit Completion 
+### Negative
+- Increased storage consumption
+- Additional write operations
+- Additional monitoring requirements
 
-1     Timestamp: 
+---
 
-2     2026-01-01T11:30:00Z 
+## Architecture Principle Established
 
-3      
-
-4     Event: 
-
-5     VisitStatusChanged 
-
-6      
-
-7     Previous: 
-
-8     On Site 
-
-9      
-
-10     New: 
-
-11     Completed 
-
- 
-
-Append-Only Principle 
-
-Audit records are append-only. 
-
-Permitted operations: 
-
-1     INSERT 
-
-Not permitted: 
-
-1     UPDATE 
-
-2     DELETE 
-
-before retention expiry. 
-
- 
-
-Example 
-
-Allowed: 
-
-1     Record 1 
-
-2     Record 2 
-
-3     Record 3 
-
-4     Record 4 
-
-Not allowed: 
-
-1     Modify Record 2 
-
-2     Delete Record 3 
-
-3     Overwrite Record 1 
-
-If an error occurs, a new audit record must be added to represent the correction. 
-
-Historical facts must never be rewritten. 
-
- 
-
-Rationale 
-
-Regulatory Compliance 
-
-The business requirement explicitly states: 
-
-1     Full audit history of status changes 
-
-Immutable records provide a verifiable audit trail. 
-
- 
-
-Trustworthiness 
-
-An audit trail can only be trusted if historical records cannot be altered. 
-
-Immutability ensures: 
-
-    Accountability 
-
-    Non-repudiation 
-
-    Traceability 
-
- 
-
-Operational Investigations 
-
-Audit records support investigation of: 
-
-    Driver complaints 
-
-    Gate incidents 
-
-    Operational delays 
-
-    Status discrepancies 
-
-    Security reviews 
-
- 
-
-Architectural Simplicity 
-
-Append-only audit models are simpler to reason about than mutable audit records. 
-
-Every event becomes a historical fact. 
-
- 
-
-DynamoDB Storage Strategy 
-
-Audit records will be stored separately from the mutable Visit Aggregate. 
-
-Recommended structure: 
-
-1     Visits Table 
-
-2      
-
-3     PK = VisitId 
-
-4      
-
-5     CurrentStatus 
-
-6     Truck 
-
-7     Trailer 
-
-8     Driver 
-
-9     ... 
-
-1     VisitAudit Table 
-
-2      
-
-3     PK = VisitId 
-
-4     SK = Timestamp 
-
-This enables efficient retrieval of a Visit's audit history whilst maintaining clear separation between: 
-
-1     Current State 
-
-and 
-
-1     Historical Facts 
-
- 
-
-Retention Strategy 
-
-Audit data must be retained for: 
-
-1     7 Years 
-
-in accordance with operational requirements. 
-
- 
-
-TTL Policy 
-
-Each audit record will contain: 
-
-1     ExpiresAt 
-
-computed as: 
-
-1     CreatedAt + 7 Years 
-
-DynamoDB TTL will be used to automatically expire records once retention obligations have been satisfied. 
-
- 
-
-Important Note 
-
-No audit record may be removed before: 
-
-1     Retention Period Complete 
-
-unless a legal or regulatory process explicitly requires otherwise. 
-
- 
-
-Audit Events 
-
-The following events must create audit entries. 
-
-Visit Created 
-
-1     VisitCreated 
-
- 
-
-Visit Status Changed 
-
-1     VisitStatusChanged 
-
- 
-
-Manual Intervention 
-
-1     ManualReviewPerformed 
-
- 
-
-Data Correction 
-
-1     VisitCorrected 
-
- 
-
-Security-Relevant Actions 
-
-Examples: 
-
-1     UnauthorizedAccessAttempt 
-
-2     AccessGranted 
-
-3     AccessRevoked 
-
-where applicable. 
-
- 
-
-Correlation Requirements 
-
-Every audit event must include a correlation identifier. 
-
-Purpose: 
-
-    Cross-service tracing 
-
-    Operational debugging 
-
-    Distributed request analysis 
-
-Example: 
-
-1     CorrelationId 
-
-2      
-
-3     8ee3d95b-faa2-4708-8a87-babb80136ef3 
-
-All audit events generated during a single workflow should share the same correlation identifier. 
-
- 
-
-Search Considerations 
-
-Audit records are not intended to support operational search workloads. 
-
-Operational visit searches should continue to be served from: 
-
-1     OpenSearch 
-
-Audit records are optimised for: 
-
-1     Traceability 
-
-2     Compliance 
-
-3     Investigation 
-
-4     Historical Review 
-
- 
-
-Alternatives Considered 
-
-Option 1: Status History Embedded Within Visit Only 
-
-Advantages 
-
-    Simpler data model 
-
-Disadvantages 
-
-    Difficult retention management 
-
-    Harder compliance reporting 
-
-    Limits future audit capabilities 
-
-Decision 
-
-Rejected. 
-
- 
-
-Option 2: Mutable Audit Records 
-
-Advantages 
-
-None. 
-
-Disadvantages 
-
-    Breaks auditability 
-
-    Allows historical manipulation 
-
-    Fails compliance objectives 
-
-Decision 
-
-Rejected. 
-
- 
-
-Option 3: Database Change Logs Only 
-
-Advantages 
-
-    Minimal application logic 
-
-Disadvantages 
-
-    Database-specific 
-
-    Difficult to query 
-
-    Difficult to understand from a business perspective 
-
-    Poor portability 
-
-Decision 
-
-Rejected. 
-
- 
-
-Risks 
-
-Risk: Audit Growth 
-
-Seven years of data may create large audit datasets. 
-
-Mitigation 
-
-    DynamoDB TTL 
-
-    Efficient partitioning strategy 
-
-    Archival review if requirements change 
-
- 
-
-Risk: Missing Audit Events 
-
-Development changes could accidentally bypass audit creation. 
-
-Mitigation 
-
-    Audit generation embedded within domain workflows 
-
-    Automated tests verifying audit creation 
-
-    Monitoring of audit event volumes 
-
- 
-
-Risk: Audit and Business State Divergence 
-
-Business updates succeed but audit creation fails. 
-
-Mitigation 
-
-Audit record creation must be treated as part of the successful transaction workflow. 
-
-A state change is not complete until the corresponding audit record has been created. 
-
- 
-
-Consequences 
-
-Positive 
-
-    Meets regulatory requirements 
-
-    Complete lifecycle traceability 
-
-    Supports investigations 
-
-    Provides trusted historical records 
-
-    Supports future reporting and analytics 
-
-    Clear separation between current state and audit history 
-
- 
-
-Negative 
-
-    Increased storage consumption 
-
-    Additional write operations 
-
-    Additional monitoring requirements 
-
- 
-
-Architecture Principle Established 
-
-All Visit status transitions and auditable business actions shall be recorded as immutable, append-only audit records. Historical events are considered permanent business facts and must not be modified or deleted during the mandated seven-year retention period. 
+> All Visit status transitions and auditable business actions shall be recorded as immutable, append-only audit records. Historical events are considered permanent business facts and must not be modified or deleted during the mandated seven-year retention period.
