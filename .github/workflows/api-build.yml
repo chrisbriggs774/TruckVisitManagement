@@ -1,0 +1,33 @@
+name: Api Build
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'TruckVisitManagement.Api/**'
+      - 'TruckVisitManagement.Application.Commands/**'
+      - 'TruckVisitManagement.Application.Queries/**'
+      - 'TruckVisitManagement.Domain/**'
+      - 'TruckVisitManagement.Infrastructure/**'
+      - 'TruckVisitManagement.slnx'
+      - '.github/workflows/api-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore API project
+        run: dotnet restore TruckVisitManagement.Api/TruckVisitManagement.Api.csproj
+
+      - name: Build API project
+        run: dotnet build TruckVisitManagement.Api/TruckVisitManagement.Api.csproj --configuration Release --no-restore
