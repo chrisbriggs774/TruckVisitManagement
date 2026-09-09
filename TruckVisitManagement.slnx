@@ -12,4 +12,5 @@
     <File Path="TruckVisit_Runtime_Architecture.drawio" />
     <File Path="ubiquitous-language.md" />
   </Folder>
+  <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />
 </Solution>
