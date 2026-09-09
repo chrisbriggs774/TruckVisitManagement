@@ -1,10 +1,31 @@
 <Solution>
+  <Folder Name="/deployment/" />
+  <Folder Name="/deployment/terraform/">
+    <File Path="deployment/terraform/dynamodb.tf" />
+    <File Path="deployment/terraform/main.tf" />
+    <File Path="deployment/terraform/opensearch.tf" />
+    <File Path="deployment/terraform/variables.tf" />
+  </Folder>
+  <Folder Name="/deployment/terragrunt/">
+    <File Path="deployment/terragrunt/terragrunt.hcl" />
+  </Folder>
+  <Folder Name="/deployment/terragrunt/dev/">
+    <File Path="deployment/terragrunt/dev/terragrunt.hcl" />
+  </Folder>
+  <Folder Name="/deployment/terragrunt/prod/">
+    <File Path="deployment/terragrunt/prod/terragrunt.hcl" />
+  </Folder>
+  <Folder Name="/deployment/terragrunt/test/">
+    <File Path="deployment/terragrunt/test/terragrunt.hcl" />
+  </Folder>
   <Folder Name="/Documentation/" />
   <Folder Name="/Documentation/ADRs/">
     <File Path="Documentation/ADRs/ADR-001 - Adopt CQRS with DynamoDb and OpenSearch.md" />
     <File Path="Documentation/ADRs/ADR-002 - Host API on Kubernetes.md" />
     <File Path="Documentation/ADRs/ADR-003 - Event-Driven Projection Strategy.md" />
     <File Path="Documentation/ADRs/ADR-004 - Immutable Audit History.md" />
+    <File Path="Documentation/ADRs/ADR-005 - DynamoDb Billing Mode - PAY_PER_REQUEST.md" />
+    <File Path="Documentation/ADRs/ADR-006 - OpenSearch Instance Sizing Strategy.md" />
   </Folder>
   <Folder Name="/Documentation/Architecture/">
     <File Path="Documentation/Architecture/TruckVisit_Runtime_Architecture.drawio" />
