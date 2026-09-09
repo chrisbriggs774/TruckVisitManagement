@@ -41,7 +41,9 @@
     <Build Solution="Debug|*" Project="false" />
   </Project>
   <Project Path="TruckVisitManagement.Api/TruckVisitManagement.Api.csproj" />
+  <Project Path="TruckVisitManagement.Application.Commands.Tests/TruckVisitManagement.Application.Commands.Tests.csproj" />
   <Project Path="TruckVisitManagement.Application.Commands/TruckVisitManagement.Application.Commands.csproj" />
+  <Project Path="TruckVisitManagement.Application.Queries.Tests/TruckVisitManagement.Application.Queries.Tests.csproj" />
   <Project Path="TruckVisitManagement.Application.Queries/TruckVisitManagement.Application.Queries.csproj" />
   <Project Path="TruckVisitManagement.Domain.Tests/TruckVisitManagement.Domain.Tests.csproj" />
   <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />

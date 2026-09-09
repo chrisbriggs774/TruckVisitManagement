@@ -7,10 +7,12 @@ on:
     paths:
       - 'TruckVisitManagement.Api/**'
       - 'TruckVisitManagement.Api.Tests/**'
-      - 'TruckVisitManagement.Domain.Tests/**'
       - 'TruckVisitManagement.Application.Commands/**'
+      - 'TruckVisitManagement.Application.Commands.Tests/**'
       - 'TruckVisitManagement.Application.Queries/**'
+      - 'TruckVisitManagement.Application.Queries.Tests/**'
       - 'TruckVisitManagement.Domain/**'
+      - 'TruckVisitManagement.Domain.Tests/**'
       - 'TruckVisitManagement.Infrastructure/**'
       - 'TruckVisitManagement.slnx'
       - '.github/workflows/api-build.yml'
@@ -34,20 +36,38 @@ jobs:
       - name: Build API project
         run: dotnet build TruckVisitManagement.Api/TruckVisitManagement.Api.csproj --configuration Release --no-restore
 
-      - name: Restore API business tests
+      - name: Restore API tests
         run: dotnet restore TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj
 
-      - name: Build API business tests
+      - name: Build API tests
         run: dotnet build TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj --configuration Release --no-restore
 
-      - name: Run API business tests
-        id: run_business_tests
+      - name: Run API tests
+        id: run_api_tests
         continue-on-error: true
         run: dotnet test TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj --configuration Release --no-build
 
-      - name: Warn on failing business tests
-        if: steps.run_business_tests.outcome == 'failure'
-        run: echo "::warning::API business tests failed. Workflow is configured to continue for now."
+      - name: Warn on failing API tests
+        if: steps.run_api_tests.outcome == 'failure'
+        run: echo "::warning::API tests failed. Workflow is configured to continue for now."
+
+      - name: Restore command tests
+        run: dotnet restore TruckVisitManagement.Application.Commands.Tests/TruckVisitManagement.Application.Commands.Tests.csproj
+
+      - name: Build command tests
+        run: dotnet build TruckVisitManagement.Application.Commands.Tests/TruckVisitManagement.Application.Commands.Tests.csproj --configuration Release --no-restore
+
+      - name: Run command tests
+        run: dotnet test TruckVisitManagement.Application.Commands.Tests/TruckVisitManagement.Application.Commands.Tests.csproj --configuration Release --no-build
+
+      - name: Restore query tests
+        run: dotnet restore TruckVisitManagement.Application.Queries.Tests/TruckVisitManagement.Application.Queries.Tests.csproj
+
+      - name: Build query tests
+        run: dotnet build TruckVisitManagement.Application.Queries.Tests/TruckVisitManagement.Application.Queries.Tests.csproj --configuration Release --no-restore
+
+      - name: Run query tests
+        run: dotnet test TruckVisitManagement.Application.Queries.Tests/TruckVisitManagement.Application.Queries.Tests.csproj --configuration Release --no-build
 
       - name: Restore domain tests
         run: dotnet restore TruckVisitManagement.Domain.Tests/TruckVisitManagement.Domain.Tests.csproj
