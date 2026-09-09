@@ -16,10 +16,13 @@
     <File Path="Documentation/ProjectDocumentation/ubiquitous-language.md" />
     <File Path="README.md" />
   </Folder>
-  <Project Path="TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj" />
+  <Project Path="TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
   <Project Path="TruckVisitManagement.Api/TruckVisitManagement.Api.csproj" />
   <Project Path="TruckVisitManagement.Application.Commands/TruckVisitManagement.Application.Commands.csproj" />
   <Project Path="TruckVisitManagement.Application.Queries/TruckVisitManagement.Application.Queries.csproj" />
+  <Project Path="TruckVisitManagement.Domain.Tests/TruckVisitManagement.Domain.Tests.csproj" />
   <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />
   <Project Path="TruckVisitManagement.Infrastructure/TruckVisitManagement.Infrastructure.csproj" />
 </Solution>
