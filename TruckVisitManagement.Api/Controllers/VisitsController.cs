@@ -9,6 +9,7 @@ using TruckVisitManagement.Application.Queries.Abstractions;
 using TruckVisitManagement.Application.Queries.GetVisitById;
 using TruckVisitManagement.Application.Queries.SearchVisits;
 using TruckVisitManagement.Domain.VisitManagement.Aggregates;
+using TruckVisitManagement.Domain.VisitManagement.Enums;
 
 namespace TruckVisitManagement.Api.Controllers;
 
@@ -105,20 +106,49 @@ public sealed class VisitsController : ControllerBase
         return Ok(response);
     }
 
-    /// <summary>
-    /// Transitions a visit to a new status. All transitions are retained as an
-    /// immutable audit history on the visit.
-    /// </summary>
-    [HttpPost("{id:guid}/status")]
+    /// <summary>Marks that the visit has arrived at the gate.</summary>
+    [HttpPost("{id:guid}/arrive-at-gate")]
     [ProducesResponseType(typeof(VisitResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<VisitResponseDto>> UpdateVisitStatus(
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<VisitResponseDto>> ArriveAtGate(
         Guid id,
-        [FromBody] UpdateVisitStatusRequestDto request,
+        [FromBody] VisitLifecycleActionRequestDto request,
+        CancellationToken cancellationToken)
+        => TransitionVisit(id, VisitStatus.AtGate, request, cancellationToken);
+
+    /// <summary>Marks that the visit has entered the site.</summary>
+    [HttpPost("{id:guid}/enter-site")]
+    [ProducesResponseType(typeof(VisitResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<VisitResponseDto>> EnterSite(
+        Guid id,
+        [FromBody] VisitLifecycleActionRequestDto request,
+        CancellationToken cancellationToken)
+        => TransitionVisit(id, VisitStatus.OnSite, request, cancellationToken);
+
+    /// <summary>Marks that the visit has been completed.</summary>
+    [HttpPost("{id:guid}/complete")]
+    [ProducesResponseType(typeof(VisitResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<VisitResponseDto>> CompleteVisit(
+        Guid id,
+        [FromBody] VisitLifecycleActionRequestDto request,
+        CancellationToken cancellationToken)
+        => TransitionVisit(id, VisitStatus.Completed, request, cancellationToken);
+
+    private async Task<ActionResult<VisitResponseDto>> TransitionVisit(
+        Guid id,
+        VisitStatus targetStatus,
+        VisitLifecycleActionRequestDto request,
         CancellationToken cancellationToken)
     {
-        var command = new UpdateVisitStatusCommand(id, request.TargetStatus, request.OriginatingActor);
+        var command = new UpdateVisitStatusCommand(id, targetStatus, request.OriginatingActor);
         var visit = await _updateVisitStatusHandler.HandleAsync(command, cancellationToken);
 
         return Ok(visit.ToResponseDto());
