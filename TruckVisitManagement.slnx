@@ -8,6 +8,7 @@
   <Folder Name="/Solution Items/">
     <File Path="bounded-context-definition.md" />
     <File Path="domain-vision.md" />
+    <File Path="README.md" />
     <File Path="TruckVisit_Runtime_Architecture.drawio" />
     <File Path="ubiquitous-language.md" />
   </Folder>
