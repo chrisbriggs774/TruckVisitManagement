@@ -361,3 +361,4 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/Documentation/Architecture/.$TruckVisit_Runtime_Architecture.drawio.bkp
