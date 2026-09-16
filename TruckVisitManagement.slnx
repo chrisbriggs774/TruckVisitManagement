@@ -38,6 +38,7 @@
     <File Path="Documentation/ProjectDocumentation/ubiquitous-language.md" />
     <File Path="README.md" />
   </Folder>
+  <Project Path="TruckVisitManagement.Api.IntegrationTests/TruckVisitManagement.Api.IntegrationTests.csproj" />
   <Project Path="TruckVisitManagement.Api.Tests/TruckVisitManagement.Api.Tests.csproj">
     <Build Solution="Debug|*" Project="false" />
   </Project>
