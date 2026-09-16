@@ -31,6 +31,7 @@
     <File Path="Documentation/Architecture/TruckVisit_Runtime_Architecture.drawio" />
   </Folder>
   <Folder Name="/Documentation/ProjectDocumentation/">
+    <File Path="Documentation/ProjectDocumentation/api-and-lambda-setup-guide.md" />
     <File Path="Documentation/ProjectDocumentation/bounded-context-definition.md" />
     <File Path="Documentation/ProjectDocumentation/domain-vision.md" />
     <File Path="Documentation/ProjectDocumentation/TruckVisitManagement.png" />
@@ -48,5 +49,7 @@
   <Project Path="TruckVisitManagement.Domain.Tests/TruckVisitManagement.Domain.Tests.csproj" />
   <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />
   <Project Path="TruckVisitManagement.Infrastructure/TruckVisitManagement.Infrastructure.csproj" />
+  <Project Path="TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj" />
+  <Project Path="TruckVisitManagement.Projection.Lambda.Tests/TruckVisitManagement.Projection.Lambda.Tests.csproj" />
   <Project Path="TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj" />
 </Solution>
