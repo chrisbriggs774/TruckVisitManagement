@@ -49,6 +49,7 @@
   <Project Path="TruckVisitManagement.Domain.Tests/TruckVisitManagement.Domain.Tests.csproj" />
   <Project Path="TruckVisitManagement.Domain/TruckVisitManagement.Domain.csproj" />
   <Project Path="TruckVisitManagement.Infrastructure/TruckVisitManagement.Infrastructure.csproj" />
+  <Project Path="TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj" />
   <Project Path="TruckVisitManagement.Projection.Lambda.Tests/TruckVisitManagement.Projection.Lambda.Tests.csproj" />
   <Project Path="TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj" />
 </Solution>

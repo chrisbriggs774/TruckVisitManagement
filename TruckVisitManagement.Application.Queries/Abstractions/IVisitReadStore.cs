@@ -13,6 +13,10 @@ public interface IVisitReadStore
     Task<Visit?> GetByIdAsync(VisitId visitId, CancellationToken cancellationToken = default);
 
     Task<VisitSearchResult> SearchAsync(VisitSearchCriteria criteria, CancellationToken cancellationToken = default);
+
+    Task UpsertAsync(Visit visit, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(VisitId visitId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

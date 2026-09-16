@@ -15,6 +15,7 @@ on:
       - 'TruckVisitManagement.Domain.Tests/**'
       - 'TruckVisitManagement.Infrastructure/**'
       - 'TruckVisitManagement.Projection.Lambda/**'
+      - 'TruckVisitManagement.Projection.Lambda/**'
       - 'TruckVisitManagement.Api.IntegrationTests/**'
       - 'TruckVisitManagement.slnx'
       - '.github/workflows/api-build.yml'
@@ -46,6 +47,12 @@ jobs:
 
       - name: Run integration and business scenario tests
         run: dotnet test TruckVisitManagement.Api.IntegrationTests/TruckVisitManagement.Api.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Restore projection lambda
+        run: dotnet restore TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj
+
+      - name: Build projection lambda
+        run: dotnet build TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj --configuration Release --no-restore
 
       - name: Restore projection lambda
         run: dotnet restore TruckVisitManagement.Projection.Lambda/TruckVisitManagement.Projection.Lambda.csproj
