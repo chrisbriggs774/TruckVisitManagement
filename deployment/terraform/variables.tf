@@ -34,3 +34,24 @@ variable "opensearch_instance_count" {
   type        = number
   default     = 1
 }
+
+variable "projection_lambda_function_name" {
+  description = "Lambda function name for DynamoDB-to-OpenSearch projection."
+  type        = string
+}
+
+variable "projection_index_name" {
+  description = "OpenSearch index name targeted by the projection Lambda."
+  type        = string
+  default     = "visits"
+}
+
+variable "projection_lambda_package_s3_bucket" {
+  description = "S3 bucket containing the deployed Lambda package zip."
+  type        = string
+}
+
+variable "projection_lambda_package_s3_key" {
+  description = "S3 key for the deployed Lambda package zip."
+  type        = string
+}
