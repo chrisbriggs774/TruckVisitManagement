@@ -37,6 +37,20 @@ public sealed class InMemoryVisitStore : IVisitWriteStore, IVisitReadStore
         return Task.FromResult(visit);
     }
 
+    public Task UpsertAsync(Visit visit, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(visit);
+        _visits[visit.Id.Value] = visit;
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(VisitId visitId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(visitId);
+        _visits.TryRemove(visitId.Value, out _);
+        return Task.CompletedTask;
+    }
+
     public Task<VisitSearchResult> SearchAsync(VisitSearchCriteria criteria, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(criteria);

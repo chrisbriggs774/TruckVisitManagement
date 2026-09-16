@@ -14,4 +14,10 @@ public sealed class OpenSearchVisitReadStore : IVisitReadStore
 
     public Task<VisitSearchResult> SearchAsync(VisitSearchCriteria criteria, CancellationToken cancellationToken = default)
         => throw new NotImplementedException("OpenSearch read store is not implemented yet.");
+
+    public Task UpsertAsync(Visit visit, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException("OpenSearch read store is not implemented yet.");
+
+    public Task DeleteAsync(VisitId visitId, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException("OpenSearch read store is not implemented yet.");
 }
