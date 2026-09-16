@@ -35,6 +35,7 @@ public class GetVisitByIdEndpointBusinessTests
     {
         using var app = new WebApplicationFactory<Program>();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Anonymous", "true");
 
         var response = await client.GetAsync($"/api/visits/{Guid.NewGuid()}");
 

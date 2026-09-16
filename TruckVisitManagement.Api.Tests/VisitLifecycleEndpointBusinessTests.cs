@@ -137,6 +137,7 @@ public class VisitLifecycleEndpointBusinessTests
     {
         using var app = new WebApplicationFactory<Program>();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Anonymous", "true");
 
         var response = await client.PostAsJsonAsync($"/api/visits/{Guid.NewGuid()}/arrive-at-gate", new
         {

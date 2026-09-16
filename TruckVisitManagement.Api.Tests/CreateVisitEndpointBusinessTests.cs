@@ -70,6 +70,7 @@ public class CreateVisitEndpointBusinessTests
     {
         using var app = new WebApplicationFactory<Program>();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Anonymous", "true");
 
         var response = await client.PostAsJsonAsync("/api/visits", VisitsApiTestSupport.BuildCreateVisitRequest());
 
