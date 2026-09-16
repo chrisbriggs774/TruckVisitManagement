@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
+using TruckVisitManagement.Api.Authentication;
 using TruckVisitManagement.Api.Contracts.Requests;
 using TruckVisitManagement.Api.Contracts.Responses;
 using TruckVisitManagement.Api.Controllers;
@@ -180,7 +181,7 @@ public class VisitsControllerUnitTests
                 .Returns(Task.FromResult(updateResult));
         }
 
-        return new VisitsController(createHandler, updateHandler, getByIdHandler, searchHandler);
+        return new VisitsController(createHandler, updateHandler, getByIdHandler, searchHandler, new ClaimsTerminalAccessPolicy());
     }
 
     private static Visit CreateVisitAggregate()

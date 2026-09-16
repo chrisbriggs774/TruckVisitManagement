@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
+using TruckVisitManagement.Api.Authentication;
 using TruckVisitManagement.Api.Infrastructure;
 using TruckVisitManagement.Application.Commands.DependencyInjection;
 using TruckVisitManagement.Application.Queries.DependencyInjection;
@@ -32,11 +34,33 @@ builder.Services.AddSwaggerGen(options =>
     {
         options.IncludeXmlComments(xmlPath);
     }
+
+    // Advertise bearer-token authentication in the OpenAPI document so the Swagger UI
+    // exposes an "Authorize" button and sends the token on each request.
+    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter the bearer token in the format: Bearer {token}",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme)] = new List<string>()
+    });
 });
 
 // Application (CQRS) handlers.
 builder.Services.AddVisitCommandHandlers();
 builder.Services.AddVisitQueryHandlers();
+
+// Authentication & authorization.
+// Default provider is the in-memory "Local" scheme. Set Authentication:Provider=Entra
+// to switch to Microsoft Entra ID (JWT bearer) without code changes.
+builder.Services.AddApiAuthentication(builder.Configuration);
 
 // Infrastructure (database) implementations.
 // Default provider is InMemory. Use Infrastructure:Provider=DynamoDbOpenSearch to switch
@@ -53,6 +77,9 @@ app.UseSwaggerUI(options =>
 {
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "Truck Visit Management API v1");
 });
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

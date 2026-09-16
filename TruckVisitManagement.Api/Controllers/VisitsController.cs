@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TruckVisitManagement.Api.Authentication;
 using TruckVisitManagement.Api.Contracts.Requests;
 using TruckVisitManagement.Api.Contracts.Responses;
 using TruckVisitManagement.Api.Mapping;
@@ -16,23 +18,27 @@ namespace TruckVisitManagement.Api.Controllers;
 [ApiController]
 [Route("api/visits")]
 [Produces("application/json")]
+[Authorize(Policy = ApiAuthenticationServiceCollectionExtensions.AuthenticatedUserPolicy)]
 public sealed class VisitsController : ControllerBase
 {
     private readonly ICommandHandler<CreateVisitCommand, Visit> _createVisitHandler;
     private readonly ICommandHandler<UpdateVisitStatusCommand, Visit> _updateVisitStatusHandler;
     private readonly IQueryHandler<GetVisitByIdQuery, Visit?> _getVisitByIdHandler;
     private readonly IQueryHandler<SearchVisitsQuery, VisitSearchResult> _searchVisitsHandler;
+    private readonly ITerminalAccessPolicy _terminalAccessPolicy;
 
     public VisitsController(
         ICommandHandler<CreateVisitCommand, Visit> createVisitHandler,
         ICommandHandler<UpdateVisitStatusCommand, Visit> updateVisitStatusHandler,
         IQueryHandler<GetVisitByIdQuery, Visit?> getVisitByIdHandler,
-        IQueryHandler<SearchVisitsQuery, VisitSearchResult> searchVisitsHandler)
+        IQueryHandler<SearchVisitsQuery, VisitSearchResult> searchVisitsHandler,
+        ITerminalAccessPolicy terminalAccessPolicy)
     {
         _createVisitHandler = createVisitHandler;
         _updateVisitStatusHandler = updateVisitStatusHandler;
         _getVisitByIdHandler = getVisitByIdHandler;
         _searchVisitsHandler = searchVisitsHandler;
+        _terminalAccessPolicy = terminalAccessPolicy;
     }
 
     /// <summary>Creates (pre-registers) a new truck visit.</summary>
@@ -77,10 +83,32 @@ public sealed class VisitsController : ControllerBase
     /// <summary>Searches visits using the documented filter, paging and sorting parameters.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponseDto<VisitResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedResponseDto<VisitResponseDto>>> SearchVisits(
         [FromQuery] SearchVisitsRequestDto request,
         CancellationToken cancellationToken)
     {
+        if (request.Page < 1)
+        {
+            ModelState.AddModelError(nameof(request.Page), "Page must be greater than or equal to 1.");
+        }
+
+        if (request.PageSize < 1)
+        {
+            ModelState.AddModelError(nameof(request.PageSize), "PageSize must be greater than or equal to 1.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        if (!_terminalAccessPolicy.CanAccessTerminal(User, request.TerminalId))
+        {
+            return Forbid();
+        }
+
         var query = new SearchVisitsQuery(
             request.TerminalId,
             request.CurrentStatus,

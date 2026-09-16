@@ -63,6 +63,7 @@ public class SearchVisitsEndpointBusinessTests
     {
         using var app = new WebApplicationFactory<Program>();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Anonymous", "true");
 
         var response = await client.GetAsync("/api/visits?page=1&pageSize=25");
 
@@ -74,6 +75,7 @@ public class SearchVisitsEndpointBusinessTests
     {
         using var app = new WebApplicationFactory<Program>();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Authorized-Terminals", "TERM-AUTHORIZED");
 
         var response = await client.GetAsync("/api/visits?terminalId=UNAUTHORIZED-TERMINAL");
 
